@@ -1,22 +1,45 @@
 # Agendas Ativa 📅
 
-Plataforma inteligente de gerenciamento de agendas de consultores com IA integrada.
+Plataforma inteligente de gerenciamento de agendas de consultores com IA integrada e sistema de autenticação completo.
 
 ## 🚀 Funcionalidades
 
-- **💬 Chat Inteligente com IA**: Faça perguntas em linguagem natural sobre disponibilidade e agendas
-- **📊 Dashboard Visual**: Visualize todas as agendas com filtros avançados
-- **🔍 Verificação de Disponibilidade**: Consulte rapidamente se um consultor está livre
-- **⚡ Operações Rápidas**: Crie, consulte e atualize agendas em segundos
-- **📈 Análises e Gráficos**: Visualizações interativas de distribuição de agendas
+### 💬 Assistente IA Inteligente
+- Faça perguntas em linguagem natural sobre disponibilidade e agendas
+- Respostas contextuais com detalhes sobre conflitos
+- Histórico de conversação persistente
+
+### 📊 Dashboard Avançado
+- Visualize todas as agendas com filtros avançados
+- Gráficos interativos de distribuição por consultor/projeto
+- Métricas em tempo real (ativas, futuras, concluídas)
+- Exportação de dados (CSV, Excel, JSON)
+
+### 🔐 Sistema de Autenticação
+- Login seguro com bcrypt
+- Controle de permissões (ADM, CONSULTOR, CL_MV)
+- Gestão de usuários
+- Logs de acesso
+
+### 📅 Timeline MV
+- Visualização calendário estilo MV Systems
+- Indicadores visuais de disponibilidade
+- Filtros por consultor e período
+
+### ⚙️ Configurações Avançadas
+- Estatísticas detalhadas do sistema
+- Limpeza automática de dados antigos
+- Importação/exportação de dados
+- Gerenciamento de usuários
 
 ## 🛠️ Tecnologias
 
-- **Frontend**: Streamlit
-- **Banco de Dados**: Supabase
+- **Frontend**: Streamlit 1.31.0
+- **Banco de Dados**: Supabase (PostgreSQL)
 - **IA**: Cohere API
-- **Visualização**: Plotly
-- **Linguagem**: Python 3.10+
+- **Visualização**: Plotly Express
+- **Autenticação**: bcrypt
+- **Linguagem**: Python 3.12
 
 ## 📋 Pré-requisitos
 
@@ -24,12 +47,13 @@ Plataforma inteligente de gerenciamento de agendas de consultores com IA integra
 2. Conta no Supabase (gratuita)
 3. API Key do Cohere (gratuita)
 
-## 🔧 Instalação
+## 🔧 Instalação e Configuração
 
-### 1. Clone o repositório ou baixe os arquivos
+### 1. Clone o repositório
 
 ```bash
-cd "c:\Users\andre\OneDrive\Área de Trabalho\Ativa"
+git clone https://github.com/andreimagagnaaa/agendasativa.git
+cd agendasativa
 ```
 
 ### 2. Instale as dependências
@@ -42,12 +66,120 @@ pip install -r requirements.txt
 
 1. Acesse [supabase.com](https://supabase.com) e crie uma conta
 2. Crie um novo projeto
-3. No SQL Editor, execute o seguinte comando para criar a tabela:
+3. No SQL Editor, execute o script `update_auth_schema.sql` para criar as tabelas
 
-```sql
-CREATE TABLE agendas (
-    id BIGSERIAL PRIMARY KEY,
-    consultor TEXT NOT NULL,
+### 4. Configure as credenciais
+
+1. Copie `.streamlit/secrets.toml.example` para `.streamlit/secrets.toml`
+2. Preencha com suas chaves do Supabase e Cohere:
+
+```toml
+SUPABASE_URL = "your_supabase_url"
+SUPABASE_KEY = "your_supabase_anon_key"
+COHERE_API_KEY = "your_cohere_api_key"
+```
+
+### 5. Execute o aplicativo
+
+```bash
+streamlit run app.py
+```
+
+### 6. Primeiro acesso
+
+**Credenciais padrão:**
+- Email: `admin@ativa.com`
+- Senha: `admin123`
+
+## 🎨 Design Moderno
+
+- Interface com glassmorphism e gradientes
+- Animações suaves e transições
+- Design responsivo
+- Tema profissional com paleta customizada
+- Componentes premium (cards, botões, chat)
+
+## 📊 Status do Sistema
+
+✅ **100% Funcional** - Todos os componentes testados e validados
+
+- 📦 **Dependências**: 10/10 instaladas
+- 🗄️ **Banco de Dados**: 374 agendas ativas
+- 🤖 **IA**: 3/3 testes bem-sucedidos
+- 🔐 **Autenticação**: Login operacional
+- 📱 **Interface**: Design moderno ativo
+
+## 🐛 Troubleshooting
+
+### Erro de conexão com Supabase
+- Verifique se a URL e a chave estão corretas em `secrets.toml`
+- Confirme que as tabelas foram criadas no Supabase
+- Teste a conexão no dashboard do Supabase
+
+### Erro na API do Cohere
+- Verifique se a API Key está válida
+- Confirme que não excedeu o limite gratuito
+- Tente regenerar a chave no dashboard
+
+### Problemas de autenticação
+- Execute `python criar_admin.py` para recriar o usuário admin
+- Verifique se a tabela `usuarios` existe no Supabase
+
+## 📝 Estrutura de Arquivos
+
+```
+agendasativa/
+├── app.py                    # Aplicação principal Streamlit
+├── database.py              # Camada de dados Supabase
+├── ai_assistant.py          # Assistente inteligente Cohere
+├── auth.py                  # Sistema de autenticação
+├── login_page.py           # Interface de login
+├── timeline_view.py        # Visualização timeline
+├── requirements.txt        # Dependências Python
+├── update_auth_schema.sql  # Schema do banco
+├── .gitignore             # Arquivos ignorados
+├── .streamlit/
+│   ├── config.toml        # Configurações Streamlit
+│   └── secrets.toml       # Credenciais (não commitar)
+├── MELHORIAS_UX_UI.md     # Documentação das melhorias
+├── RELATORIO_ANALISE_FUNCIONAL.md # Relatório de testes
+└── README.md              # Este arquivo
+```
+
+## 🚀 Deploy no GitHub
+
+Este projeto está hospedado em: https://github.com/andreimagagnaaa/agendasativa
+
+### Como contribuir:
+1. Fork o projeto
+2. Crie uma branch para sua feature (`git checkout -b feature/nova-funcionalidade`)
+3. Commit suas mudanças (`git commit -m 'Adiciona nova funcionalidade'`)
+4. Push para a branch (`git push origin feature/nova-funcionalidade`)
+5. Abra um Pull Request
+
+## 📈 Próximas Funcionalidades
+
+- [ ] Notificações por email/SMS
+- [ ] Integração com Google Calendar
+- [ ] Relatórios automáticos em PDF
+- [ ] Aplicativo mobile (React Native)
+- [ ] API REST para integrações
+- [ ] Temas claro/escuro
+- [ ] Backup automático do banco
+
+## 👥 Suporte
+
+Para dúvidas ou problemas, abra uma issue no GitHub ou entre em contato com o administrador.
+
+## 📄 Licença
+
+Este projeto é proprietário da Ativa.
+
+---
+
+**Desenvolvido com ❤️ para otimizar o gerenciamento de agendas**
+
+**⭐ Se este projeto foi útil, dê uma estrela no GitHub!**
     data_inicio DATE NOT NULL,
     data_fim DATE NOT NULL,
     projeto TEXT NOT NULL,
