@@ -12,26 +12,30 @@ class Database:
         # Obter credenciais das variáveis de ambiente ou secrets do Streamlit
         self.supabase_url = None
         self.supabase_key = None
+        self.client = None
         
         try:
-            self.supabase_url = st.secrets["SUPABASE_URL"]
-            self.supabase_key = st.secrets["SUPABASE_KEY"]
-        except Exception as e:
-            try:
-                self.supabase_url = os.getenv("SUPABASE_URL")
-                self.supabase_key = os.getenv("SUPABASE_KEY")
-            except:
-                pass
+            # Tentar secrets do Streamlit primeiro
+            if hasattr(st, 'secrets') and 'SUPABASE_URL' in st.secrets:
+                self.supabase_url = st.secrets["SUPABASE_URL"]
+                self.supabase_key = st.secrets.get("SUPABASE_KEY") or st.secrets.get("SUPABASE_ANON_KEY")
+        except:
+            pass
+        
+        # Fallback para variáveis de ambiente
+        if not self.supabase_url:
+            self.supabase_url = os.getenv("SUPABASE_URL")
+            self.supabase_key = os.getenv("SUPABASE_KEY") or os.getenv("SUPABASE_ANON_KEY")
         
         if not self.supabase_url or not self.supabase_key:
-            st.error("⚠️ Credenciais do Supabase não configuradas. Configure SUPABASE_URL e SUPABASE_KEY.")
+            print("⚠️ Credenciais do Supabase não configuradas.")
+            return
+        
+        try:
+            self.client = create_client(self.supabase_url, self.supabase_key)
+        except Exception as e:
+            print(f"Erro ao conectar: {str(e)}")
             self.client = None
-        else:
-            try:
-                self.client = create_client(self.supabase_url, self.supabase_key)
-            except Exception as e:
-                st.error(f"Erro ao conectar: {str(e)}")
-                self.client = None
         
         self.table_name = "agendas"
     

@@ -10,13 +10,23 @@ class AIAssistant:
     
     def __init__(self):
         """Inicializa o cliente Cohere"""
-        # API key hardcoded conforme solicitado
-        self.api_key = "kk6JjxQxYXNngcxx1RJiZtD6ZGL1MzeJAzysE9ym"
+        self.client = None
+        
+        # Tentar obter API key de secrets ou variável de ambiente
+        self.api_key = None
+        try:
+            if hasattr(st, 'secrets') and 'COHERE_API_KEY' in st.secrets:
+                self.api_key = st.secrets["COHERE_API_KEY"]
+        except:
+            pass
+        
+        if not self.api_key:
+            self.api_key = os.getenv("COHERE_API_KEY", "kk6JjxQxYXNngcxx1RJiZtD6ZGL1MzeJAzysE9ym")
         
         try:
             self.client = cohere.Client(self.api_key)
         except Exception as e:
-            st.error(f"❌ Erro ao inicializar Cohere: {str(e)}")
+            print(f"❌ Erro ao inicializar Cohere: {str(e)}")
             self.client = None
     
     def process_query(self, query: str, agendas: List[Dict]) -> str:
