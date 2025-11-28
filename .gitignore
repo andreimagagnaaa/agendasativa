@@ -47,3 +47,5 @@ Thumbs.db
 
 # Outros
 .pytest_cache/
+
+.venv/
