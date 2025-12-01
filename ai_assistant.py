@@ -3,7 +3,8 @@ import cohere
 import streamlit as st
 from datetime import datetime, timedelta
 import re
-from typing import List, Dict
+import unicodedata
+from typing import List, Dict, Union
 
 class AIAssistant:
     """Assistente de IA usando Cohere para processamento de linguagem natural"""
@@ -29,40 +30,52 @@ class AIAssistant:
             print(f"❌ Erro ao inicializar Cohere: {str(e)}")
             self.client = None
     
-    def process_query(self, query: str, agendas: List[Dict]) -> str:
+    def normalize_text(self, text: str) -> str:
+        """Normaliza texto removendo acentos e convertendo para minúsculo"""
+        if not text: return ""
+        return unicodedata.normalize('NFKD', text).encode('ASCII', 'ignore').decode('ASCII').lower()
+
+    def process_query(self, query: str, agendas: List[Dict]) -> Dict:
         """
-        Processa uma query do usuário e retorna resposta
+        Processa uma query do usuário e retorna resposta estruturada
         
         Args:
             query: Pergunta ou comando do usuário
             agendas: Lista de agendas para contexto
         
         Returns:
-            Resposta formatada
+            Dict com 'text' e opcionalmente 'action'
         """
         if not self.client:
-            return "❌ Assistente de IA não disponível. Configure a COHERE_API_KEY."
+            return {"text": "❌ Assistente de IA não disponível. Configure a COHERE_API_KEY.", "action": None}
         
         try:
             # Identificar a intenção do usuário
             intent = self._identify_intent(query)
             print(f"[DEBUG] Intent final: {intent}")
             
+            response = None
+            
             # Processar baseado na intenção
             if intent == "disponibilidade":
-                return self._handle_disponibilidade(query, agendas)
+                response = self._handle_disponibilidade(query, agendas)
             elif intent == "consulta":
-                return self._handle_consulta(query, agendas)
+                response = self._handle_consulta(query, agendas)
             elif intent == "listar":
-                return self._handle_listar(query, agendas)
+                response = self._handle_listar(query, agendas)
             elif intent == "criar":
-                return self._handle_criar_agenda(query)
+                response = self._handle_criar_agenda(query)
             else:
                 # Fallback para Cohere se não identificar a intenção
-                return self._interpret_query_with_cohere(query, agendas)
+                response = self._interpret_query_with_cohere(query, agendas)
+            
+            # Normalizar resposta para formato Dict
+            if isinstance(response, str):
+                return {"text": response, "action": None}
+            return response
                 
         except Exception as e:
-            return f"❌ Erro ao processar pergunta: {str(e)}\n\nTente reformular sua pergunta."
+            return {"text": f"❌ Erro ao processar pergunta: {str(e)}\n\nTente reformular sua pergunta.", "action": None}
     
     def _prepare_context(self, agendas: List[Dict]) -> str:
         """Prepara contexto das agendas para a IA"""
@@ -169,35 +182,38 @@ class AIAssistant:
             resposta += f"**Exemplos:** _Sirlene dia 20/12_, _André em março_"
             return resposta
         
-        # Filtrar agendas
-        agendas_filtradas = agendas
+        # Função auxiliar de filtragem
+        def aplicar_filtros(c, d, p, o):
+            res = agendas
+            if c:
+                res = [a for a in res if self.normalize_text(c) in self.normalize_text(a['consultor'])]
+            if d:
+                data_inicio, data_fim = d
+                res = [
+                    a for a in res
+                    if not (datetime.strptime(a['data_fim'], "%Y-%m-%d").date() < data_inicio or
+                           datetime.strptime(a['data_inicio'], "%Y-%m-%d").date() > data_fim)
+                ]
+            if p:
+                res = [a for a in res if self.normalize_text(p) in self.normalize_text(a['projeto'])]
+            if o:
+                res = [a for a in res if o in str(a['os'])]
+            return res
+
+        # Tentar filtragem inicial
+        agendas_filtradas = aplicar_filtros(consultor, datas, projeto, os_num)
         
-        if consultor:
-            agendas_filtradas = [
-                a for a in agendas_filtradas 
-                if consultor.lower() in a['consultor'].lower()
-            ]
-        
-        if datas:
-            data_inicio, data_fim = datas
-            agendas_filtradas = [
-                a for a in agendas_filtradas
-                if not (datetime.strptime(a['data_fim'], "%Y-%m-%d").date() < data_inicio or
-                       datetime.strptime(a['data_inicio'], "%Y-%m-%d").date() > data_fim)
-            ]
-        
-        if projeto:
-            agendas_filtradas = [
-                a for a in agendas_filtradas
-                if projeto.lower() in a['projeto'].lower()
-            ]
-        
-        if os_num:
-            agendas_filtradas = [
-                a for a in agendas_filtradas
-                if os_num in str(a['os'])
-            ]
-        
+        # FALLBACK INTELIGENTE:
+        # Se filtrou por consultor e não achou nada, mas o nome pode ser um projeto
+        # Ex: "Agendas da Natália" (Natália é projeto, não consultora)
+        if not agendas_filtradas and consultor and not projeto:
+            print(f"[DEBUG] Tentando fallback: Consultor '{consultor}' como Projeto")
+            agendas_fallback = aplicar_filtros(None, datas, consultor, os_num)
+            if agendas_fallback:
+                agendas_filtradas = agendas_fallback
+                projeto = consultor # Atualiza para exibir corretamente na resposta
+                consultor = None # Remove consultor pois era projeto
+
         # Formatar resposta
         if not agendas_filtradas:
             filtros = []
@@ -342,7 +358,7 @@ class AIAssistant:
         
         return resposta
     
-    def _handle_criar_agenda(self, query: str) -> str:
+    def _handle_criar_agenda(self, query: str) -> Dict:
         """Auxilia na criação de uma nova agenda"""
         consultor = self._extract_consultor(query)
         projeto = self._extract_projeto(query)
@@ -378,17 +394,29 @@ class AIAssistant:
             resposta += f"\n❌ **Informações faltando:** {', '.join(info_faltando)}\n\n"
             resposta += "**Exemplo de comando completo:**\n"
             resposta += "_Agende o consultor João Silva para o Projeto Alpha, OS 12345, de 15/01/2025 a 20/01/2025_"
+            return {"text": resposta, "action": None}
         else:
             # Criar comando para inserção manual
             resposta += f"\n✨ **Todas as informações foram coletadas!**\n\n"
-            resposta += f"Use o formulário abaixo ou a API para criar a agenda:\n"
-            resposta += f"- Consultor: {consultor}\n"
-            resposta += f"- Projeto: {projeto}\n"
-            resposta += f"- OS: {os}\n"
-            resposta += f"- Data Início: {datas[0].strftime('%Y-%m-%d')}\n"
-            resposta += f"- Data Fim: {datas[1].strftime('%Y-%m-%d')}\n"
-        
-        return resposta
+            resposta += f"Confirme os dados abaixo para criar a agenda:\n"
+            resposta += f"- **Consultor:** {consultor}\n"
+            resposta += f"- **Projeto:** {projeto}\n"
+            resposta += f"- **OS:** {os}\n"
+            resposta += f"- **Período:** {datas[0].strftime('%d/%m/%Y')} a {datas[1].strftime('%d/%m/%Y')}\n"
+            
+            return {
+                "text": resposta,
+                "action": {
+                    "type": "create_agenda",
+                    "data": {
+                        "consultor": consultor,
+                        "projeto": projeto,
+                        "os": os,
+                        "data_inicio": datas[0].strftime('%Y-%m-%d'),
+                        "data_fim": datas[1].strftime('%Y-%m-%d')
+                    }
+                }
+            }
     
     def _handle_listar(self, query: str, agendas: List[Dict]) -> str:
         """Lista agendas com filtros"""

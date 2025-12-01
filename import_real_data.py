@@ -194,7 +194,7 @@ def importar_agendas(agendas):
 
 if __name__ == "__main__":
     # Caminho do arquivo
-    arquivo_path = r"c:\Users\andre\Downloads\GERAL_25052025.txt"
+    arquivo_path = r"c:\Users\andre\OneDrive\Área de Trabalho\Ativa\agendasativa\agendas_atualizadas.txt"
     
     if not os.path.exists(arquivo_path):
         print(f"❌ Arquivo não encontrado: {arquivo_path}")
@@ -203,9 +203,9 @@ if __name__ == "__main__":
     print("🚀 Iniciando importação de dados reais...\n")
     
     # Perguntar se deve limpar o banco
-    limpar = input("⚠️  Deseja LIMPAR o banco antes de importar? (s/N): ").strip().lower()
-    if limpar == 's':
-        limpar_banco()
+    # limpar = input("⚠️  Deseja LIMPAR o banco antes de importar? (s/N): ").strip().lower()
+    # if limpar == 's':
+    limpar_banco()
     
     # Fazer parsing do arquivo
     print("📖 Lendo arquivo...")
@@ -224,8 +224,8 @@ if __name__ == "__main__":
         print(f"   - {cons}: {count} agendas")
     
     # Confirmar importação
-    confirmar = input(f"\n✅ Confirma importação de {len(agendas)} agendas? (S/n): ").strip().lower()
-    if confirmar != 'n':
-        importar_agendas(agendas)
-    else:
-        print("❌ Importação cancelada")
+    # confirmar = input(f"\n✅ Confirma importação de {len(agendas)} agendas? (S/n): ").strip().lower()
+    # if confirmar != 'n':
+    importar_agendas(agendas)
+    # else:
+    #     print("❌ Importação cancelada")
