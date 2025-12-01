@@ -664,7 +664,12 @@ def chat_page(db, ai, usuario=None):
             st.session_state.chat_history.append({'role': 'user', 'content': query})
             
             with st.spinner("🤖 Processando..."):
-                response = ai.process_query(query, agendas)
+                response_data = ai.process_query(query, agendas)
+            
+            if isinstance(response_data, dict):
+                response = response_data.get("text", "")
+            else:
+                response = str(response_data)
             
             st.session_state.chat_history.append({'role': 'assistant', 'content': response})
             st.rerun()
@@ -676,7 +681,12 @@ def chat_page(db, ai, usuario=None):
             st.session_state.chat_history.append({'role': 'user', 'content': query})
             
             with st.spinner("🤖 Processando..."):
-                response = ai.process_query(query, agendas)
+                response_data = ai.process_query(query, agendas)
+            
+            if isinstance(response_data, dict):
+                response = response_data.get("text", "")
+            else:
+                response = str(response_data)
             
             st.session_state.chat_history.append({'role': 'assistant', 'content': response})
             st.rerun()
@@ -712,7 +722,12 @@ def chat_page(db, ai, usuario=None):
                     st.session_state.chat_history.append({'role': 'user', 'content': query})
                     
                     with st.spinner("🤖 Processando..."):
-                        response = ai.process_query(query, agendas)
+                        response_data = ai.process_query(query, agendas)
+                    
+                    if isinstance(response_data, dict):
+                        response = response_data.get("text", "")
+                    else:
+                        response = str(response_data)
                     
                     st.session_state.chat_history.append({'role': 'assistant', 'content': response})
                     st.session_state.show_search_form = False
@@ -867,10 +882,51 @@ def chat_page(db, ai, usuario=None):
         st.session_state.chat_history.append({'role': 'user', 'content': user_input})
         
         with st.spinner("..."):
-            response = ai.process_query(user_input, agendas)
+            response_data = ai.process_query(user_input, agendas)
         
-        st.session_state.chat_history.append({'role': 'assistant', 'content': response})
+        # Extrair texto e ação
+        if isinstance(response_data, dict):
+            response_text = response_data.get("text", "")
+            action = response_data.get("action")
+        else:
+            response_text = str(response_data)
+            action = None
+        
+        st.session_state.chat_history.append({'role': 'assistant', 'content': response_text})
+        
+        if action:
+            st.session_state.pending_action = action
+        else:
+            if 'pending_action' in st.session_state:
+                del st.session_state.pending_action
+                
         st.rerun()
+
+    # Renderizar botão de ação se houver
+    if 'pending_action' in st.session_state:
+        action = st.session_state.pending_action
+        if action['type'] == 'create_agenda':
+            data = action['data']
+            st.info("👇 Confirme a criação da agenda abaixo:")
+            col_act1, col_act2 = st.columns(2)
+            with col_act1:
+                if st.button("✅ Confirmar Agendamento", use_container_width=True, type="primary"):
+                    if db.create_agenda(
+                        consultor=data['consultor'],
+                        data_inicio=data['data_inicio'],
+                        data_fim=data['data_fim'],
+                        projeto=data['projeto'],
+                        os=data['os']
+                    ):
+                        st.success("✅ Agenda criada com sucesso!")
+                        st.session_state.chat_history.append({'role': 'assistant', 'content': "✅ Agenda criada com sucesso!"})
+                        del st.session_state.pending_action
+                        st.rerun()
+            with col_act2:
+                if st.button("❌ Cancelar", use_container_width=True):
+                    st.warning("Operação cancelada.")
+                    del st.session_state.pending_action
+                    st.rerun()
 
 def dashboard_page(db):
     agendas = db.get_all_agendas()
