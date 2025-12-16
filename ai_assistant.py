@@ -77,7 +77,9 @@ class AIAssistant:
             return response
                 
         except Exception as e:
-         handle_verificar_vaga(self, query: str, agendas: List[Dict]) -> str:
+            return {"text": f"❌ Erro ao processar pergunta: {str(e)}\n\nTente reformular sua pergunta.", "action": None}
+
+    def _handle_verificar_vaga(self, query: str, agendas: List[Dict]) -> str:
         """
         Verifica se há vaga para uma demanda específica.
         Ex: "Preciso de um consultor para o projeto X de 10/01 a 20/01"
@@ -134,8 +136,6 @@ class AIAssistant:
         resposta += "\n💡 _Dica: Use o comando 'Agende [Nome] para [Projeto]...' para realizar a alocação._"
         
         return resposta
-
-    def _   return {"text": f"❌ Erro ao processar pergunta: {str(e)}\n\nTente reformular sua pergunta.", "action": None}
     
     def _prepare_context(self, agendas: List[Dict]) -> str:
         """Prepara contexto das agendas para a IA"""
