@@ -65,6 +65,8 @@ class AIAssistant:
                 response = self._handle_listar(query, agendas)
             elif intent == "criar":
                 response = self._handle_criar_agenda(query)
+            elif intent == "verificar_vaga":
+                response = self._handle_verificar_vaga(query, agendas)
             else:
                 # Fallback para Cohere se não identificar a intenção
                 response = self._interpret_query_with_cohere(query, agendas)
@@ -75,7 +77,65 @@ class AIAssistant:
             return response
                 
         except Exception as e:
-            return {"text": f"❌ Erro ao processar pergunta: {str(e)}\n\nTente reformular sua pergunta.", "action": None}
+         handle_verificar_vaga(self, query: str, agendas: List[Dict]) -> str:
+        """
+        Verifica se há vaga para uma demanda específica.
+        Ex: "Preciso de um consultor para o projeto X de 10/01 a 20/01"
+        """
+        # Extrair datas da demanda
+        datas = self._extract_dates(query)
+        if not datas:
+            return "❓ Para verificar vagas, preciso saber o período desejado.\n\n**Exemplo:** _'Preciso de consultor de 10/01 a 20/01'_"
+        
+        data_inicio, data_fim = datas
+        
+        # Buscar consultores disponíveis no período
+        consultores_disponiveis = []
+        
+        # Obter lista única de todos os consultores cadastrados
+        todos_consultores = sorted(list(set([a['consultor'] for a in agendas])))
+        
+        for consultor in todos_consultores:
+            # Verificar se o consultor tem conflito no período
+            tem_conflito = False
+            agendas_consultor = [a for a in agendas if a['consultor'] == consultor]
+            
+            for agenda in agendas_consultor:
+                # Ignorar agendas vagas
+                is_vago = agenda.get('is_vago', False) or agenda.get('projeto', '').upper() in ['VAGO', 'LIVRE']
+                if is_vago:
+                    continue
+                
+                ag_inicio = datetime.strptime(agenda['data_inicio'], "%Y-%m-%d").date()
+                ag_fim = datetime.strptime(agenda['data_fim'], "%Y-%m-%d").date()
+                
+                # Se houver sobreposição, tem conflito
+                if not (data_fim < ag_inicio or data_inicio > ag_fim):
+                    tem_conflito = True
+                    break
+            
+            if not tem_conflito:
+                consultores_disponiveis.append(consultor)
+        
+        # Formatar resposta
+        if data_inicio == data_fim:
+            periodo_str = data_inicio.strftime('%d/%m/%Y')
+        else:
+            periodo_str = f"{data_inicio.strftime('%d/%m/%Y')} a {data_fim.strftime('%d/%m/%Y')}"
+        
+        if not consultores_disponiveis:
+            return f"❌ **Não há consultores disponíveis** para o período de {periodo_str}."
+        
+        resposta = f"✅ **Encontrei {len(consultores_disponiveis)} consultores disponíveis** para {periodo_str}:\n\n"
+        
+        for cons in consultores_disponiveis:
+            resposta += f"• 👤 **{cons}**\n"
+            
+        resposta += "\n💡 _Dica: Use o comando 'Agende [Nome] para [Projeto]...' para realizar a alocação._"
+        
+        return resposta
+
+    def _   return {"text": f"❌ Erro ao processar pergunta: {str(e)}\n\nTente reformular sua pergunta.", "action": None}
     
     def _prepare_context(self, agendas: List[Dict]) -> str:
         """Prepara contexto das agendas para a IA"""
@@ -107,6 +167,11 @@ class AIAssistant:
         criar_keywords = ['agende', 'criar', 'adicionar', 'adicione', 'registrar', 'registre', 'alocar', 'aloque', 'reserve']
         if any(keyword in query_lower for keyword in criar_keywords):
             return "criar"
+            
+        # Palavras-chave para verificar vaga (demanda do CEO)
+        vaga_keywords = ['vaga', 'preciso de', 'tem alguem', 'tem alguém', 'quem pode', 'quem está livre', 'quem esta livre', 'sugira', 'sugestão']
+        if any(keyword in query_lower for keyword in vaga_keywords):
+            return "verificar_vaga"
         
         # PRIORIDADE 1: Verificar disponibilidade (livre/ocupado/pode) - ANTES de qualquer outra coisa
         disp_keywords = ['livre', 'ocupado', 'disponível', 'disponivel', 'pode', 'está livre', 'esta livre', 'tem vaga', 'tem agenda livre']
