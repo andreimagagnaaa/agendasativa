@@ -81,8 +81,7 @@ class AIAssistant:
 
     def _handle_verificar_vaga(self, query: str, agendas: List[Dict]) -> str:
         """
-        Verifica se há vaga para uma demanda específica.
-        Ex: "Preciso de um consultor para o projeto X de 10/01 a 20/01"
+        Verifica se há vaga para uma demanda específica com sugestões inteligentes.
         """
         # Extrair datas da demanda
         datas = self._extract_dates(query)
@@ -90,17 +89,18 @@ class AIAssistant:
             return "❓ Para verificar vagas, preciso saber o período desejado.\n\n**Exemplo:** _'Preciso de consultor de 10/01 a 20/01'_"
         
         data_inicio, data_fim = datas
+        total_dias = (data_fim - data_inicio).days + 1
         
-        # Buscar consultores disponíveis no período
-        consultores_disponiveis = []
+        # Listas para classificar consultores
+        totalmente_livres = []
+        parcialmente_livres = []
         
         # Obter lista única de todos os consultores cadastrados
         todos_consultores = sorted(list(set([a['consultor'] for a in agendas])))
         
         for consultor in todos_consultores:
-            # Verificar se o consultor tem conflito no período
-            tem_conflito = False
             agendas_consultor = [a for a in agendas if a['consultor'] == consultor]
+            dias_ocupados = set()
             
             for agenda in agendas_consultor:
                 # Ignorar agendas vagas
@@ -111,13 +111,22 @@ class AIAssistant:
                 ag_inicio = datetime.strptime(agenda['data_inicio'], "%Y-%m-%d").date()
                 ag_fim = datetime.strptime(agenda['data_fim'], "%Y-%m-%d").date()
                 
-                # Se houver sobreposição, tem conflito
+                # Verificar sobreposição e contar dias
                 if not (data_fim < ag_inicio or data_inicio > ag_fim):
-                    tem_conflito = True
-                    break
+                    curr = max(data_inicio, ag_inicio)
+                    end = min(data_fim, ag_fim)
+                    while curr <= end:
+                        dias_ocupados.add(curr)
+                        curr += timedelta(days=1)
             
-            if not tem_conflito:
-                consultores_disponiveis.append(consultor)
+            qtd_ocupados = len(dias_ocupados)
+            if qtd_ocupados == 0:
+                totalmente_livres.append(consultor)
+            elif qtd_ocupados < total_dias:
+                livres = total_dias - qtd_ocupados
+                porcentagem = int((livres / total_dias) * 100)
+                if porcentagem >= 50: # Só sugerir se tiver pelo menos 50% livre
+                    parcialmente_livres.append((consultor, porcentagem))
         
         # Formatar resposta
         if data_inicio == data_fim:
@@ -125,15 +134,25 @@ class AIAssistant:
         else:
             periodo_str = f"{data_inicio.strftime('%d/%m/%Y')} a {data_fim.strftime('%d/%m/%Y')}"
         
-        if not consultores_disponiveis:
-            return f"❌ **Não há consultores disponíveis** para o período de {periodo_str}."
+        resposta = f"### 🔎 Análise de Vagas ({periodo_str})\n\n"
         
-        resposta = f"✅ **Encontrei {len(consultores_disponiveis)} consultores disponíveis** para {periodo_str}:\n\n"
-        
-        for cons in consultores_disponiveis:
-            resposta += f"• 👤 **{cons}**\n"
+        if totalmente_livres:
+            resposta += f"✅ **{len(totalmente_livres)} Consultores Totalmente Livres:**\n"
+            for cons in totalmente_livres:
+                resposta += f"• 👤 **{cons}**\n"
+            resposta += "\n"
             
-        resposta += "\n💡 _Dica: Use o comando 'Agende [Nome] para [Projeto]...' para realizar a alocação._"
+        if parcialmente_livres:
+            parcialmente_livres.sort(key=lambda x: x[1], reverse=True)
+            resposta += f"⚠️ **{len(parcialmente_livres)} Consultores Parcialmente Livres:**\n"
+            for cons, pct in parcialmente_livres:
+                resposta += f"• 👤 **{cons}** ({pct}% livre)\n"
+            resposta += "\n"
+            
+        if not totalmente_livres and not parcialmente_livres:
+            resposta += f"❌ **Nenhum consultor disponível** para este período.\n"
+            
+        resposta += "\n💡 _Dica: Use o comando 'Agende [Nome]...' para alocar._"
         
         return resposta
     
@@ -350,7 +369,7 @@ class AIAssistant:
         return resposta
     
     def _handle_disponibilidade(self, query: str, agendas: List[Dict]) -> str:
-        """Verifica disponibilidade de consultores com maior precisão"""
+        """Verifica disponibilidade de consultores com análise avançada de conflitos e sugestões"""
         consultor = self._extract_consultor(query)
         datas = self._extract_dates(query)
         
@@ -379,8 +398,10 @@ class AIAssistant:
         if not agendas_consultor:
             return f"❓ Não encontrei agendas para o consultor **{consultor}**. Verifique o nome."
         
-        # Buscar conflitos no período específico (ignorando agendas VAGO)
+        # Buscar conflitos no período específico
         conflitos = []
+        dias_ocupados = set()
+        
         for agenda in agendas_consultor:
             # Ignorar agendas vagas
             is_vago = agenda.get('is_vago', False) or agenda.get('projeto', '').upper() in ['VAGO', 'LIVRE']
@@ -393,34 +414,96 @@ class AIAssistant:
             # Verificar sobreposição
             if not (data_fim < agenda_inicio or data_inicio > agenda_fim):
                 conflitos.append(agenda)
+                
+                # Mapear dias exatos ocupados dentro do período solicitado
+                curr = max(data_inicio, agenda_inicio)
+                end = min(data_fim, agenda_fim)
+                while curr <= end:
+                    dias_ocupados.add(curr)
+                    curr += timedelta(days=1)
         
-        # Formatar período
+        # Formatar período solicitado
         if data_inicio == data_fim:
             periodo_str = data_inicio.strftime('%d/%m/%Y')
             periodo_label = f"dia {periodo_str}"
+            total_dias = 1
         else:
             periodo_str = f"{data_inicio.strftime('%d/%m/%Y')} a {data_fim.strftime('%d/%m/%Y')}"
             periodo_label = f"período de {periodo_str}"
+            total_dias = (data_fim - data_inicio).days + 1
+            
+        # --- ANÁLISE DE STATUS ---
         
-        # Resposta direta e objetiva
+        # 1. Totalmente Livre
         if not conflitos:
-            return f"✅ **SIM, {consultor} está livre no {periodo_label}!** 🟢"
+            return f"""### ✅ STATUS: LIVRE
+            
+O consultor **{consultor}** está **100% disponível** no {periodo_label}.
+
+🟢 **Pode agendar!** Não há conflitos registrados."""
+
+        # 2. Totalmente Ocupado
+        if len(dias_ocupados) == total_dias:
+            # Encontrar próxima data livre (simples)
+            ultima_agenda = max([datetime.strptime(a['data_fim'], "%Y-%m-%d").date() for a in agendas_consultor])
+            proxima_livre = ultima_agenda + timedelta(days=1)
+            
+            resposta = f"""### 🔴 STATUS: OCUPADO
+            
+O consultor **{consultor}** está **totalmente ocupado** no {periodo_label}.
+
+**Conflitos encontrados:**
+"""
+            for c in conflitos:
+                inicio = datetime.strptime(c['data_inicio'], "%Y-%m-%d").strftime("%d/%m/%Y")
+                fim = datetime.strptime(c['data_fim'], "%Y-%m-%d").strftime("%d/%m/%Y")
+                resposta += f"• 📁 **{c['projeto']}** ({inicio} - {fim})\n"
+            
+            resposta += f"\n🗓️ **Sugestão:** A agenda dele(a) parece liberar a partir de **{proxima_livre.strftime('%d/%m/%Y')}**."
+            return resposta
+
+        # 3. Parcialmente Livre (Misto)
+        dias_livres = total_dias - len(dias_ocupados)
+        porcentagem_livre = int((dias_livres / total_dias) * 100)
         
-        # Se tem conflitos, mostrar quantos
-        qtd_conflitos = len(conflitos)
-        conflito_text = "1 agenda" if qtd_conflitos == 1 else f"{qtd_conflitos} agendas"
+        resposta = f"""### 🟡 STATUS: PARCIALMENTE LIVRE
         
-        resposta = f"❌ **NÃO, {consultor} está ocupado(a) no {periodo_label}.**\n\n"
-        resposta += f"🔴 {conflito_text} neste período:\n\n"
-        
+O consultor **{consultor}** tem disponibilidade em **{porcentagem_livre}%** do período ({dias_livres} de {total_dias} dias).
+
+**Dias Ocupados:**
+"""
         for c in conflitos:
             inicio = datetime.strptime(c['data_inicio'], "%Y-%m-%d").strftime("%d/%m/%Y")
             fim = datetime.strptime(c['data_fim'], "%Y-%m-%d").strftime("%d/%m/%Y")
-            os_info = f" (OS: {c['os']})" if c.get('os') else ""
-            gerente_info = f" - Gerente: {c['gerente']}" if c.get('gerente') else ""
-            resposta += f"• **{c['projeto']}**{os_info}{gerente_info}\n"
-            resposta += f"  📅 {inicio} até {fim}\n\n"
+            resposta += f"• ❌ **{c['projeto']}**: {inicio} até {fim}\n"
+            
+        resposta += "\n**Dias Livres neste período:**\n"
         
+        # Listar intervalos livres
+        curr = data_inicio
+        intervalo_inicio = None
+        
+        while curr <= data_fim:
+            if curr not in dias_ocupados:
+                if intervalo_inicio is None:
+                    intervalo_inicio = curr
+            else:
+                if intervalo_inicio:
+                    # Fechar intervalo
+                    if intervalo_inicio == curr - timedelta(days=1):
+                        resposta += f"• ✅ {intervalo_inicio.strftime('%d/%m/%Y')}\n"
+                    else:
+                        resposta += f"• ✅ {intervalo_inicio.strftime('%d/%m/%Y')} a {(curr - timedelta(days=1)).strftime('%d/%m/%Y')}\n"
+                    intervalo_inicio = None
+            curr += timedelta(days=1)
+            
+        # Fechar último intervalo se houver
+        if intervalo_inicio:
+            if intervalo_inicio == data_fim:
+                resposta += f"• ✅ {intervalo_inicio.strftime('%d/%m/%Y')}\n"
+            else:
+                resposta += f"• ✅ {intervalo_inicio.strftime('%d/%m/%Y')} a {data_fim.strftime('%d/%m/%Y')}\n"
+                
         return resposta
     
     def _handle_criar_agenda(self, query: str) -> Dict:
